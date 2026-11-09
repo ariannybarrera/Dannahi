@@ -37,6 +37,10 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  /* Sin scroll lateral (iPhone necesita el bloqueo también en html) */
+  html, body { max-width: 100%; overflow-x: hidden; }
+  @supports (overflow: clip) { html, body { overflow-x: clip; } }
+
   body {
     min-height: 100vh;
     background:
@@ -106,11 +110,17 @@
   }
 
   /* === Scrolling ticker band === */
-  .ticker {
+  .ticker-zone {
     position: relative;
     z-index: 11;
-    width: 120vw;
-    margin: 22px 0 0 -10vw;
+    width: 100%;
+    overflow: hidden;
+    padding: 14px 0 8px;
+  }
+  .ticker {
+    position: relative;
+    width: 120%;
+    margin: 8px 0 0 -10%;
     transform: rotate(-3deg);
     background: linear-gradient(90deg, var(--pink), var(--purple), var(--pink));
     border-top: 2px solid rgba(255,255,255,0.8);
@@ -676,8 +686,10 @@ for(let i=0;i<10;i++){
 </script>
 
 <!-- Ticker -->
-<div class="ticker" aria-hidden="true">
-  <div class="ticker-track" id="ticker"></div>
+<div class="ticker-zone" aria-hidden="true">
+  <div class="ticker">
+    <div class="ticker-track" id="ticker"></div>
+  </div>
 </div>
 <script>
 const tickerText='<span>DANNAHI</span><span class="dot">★</span><span>4 AÑOS</span><span class="dot">★</span><span>K-POP PARTY</span><span class="dot">★</span><span>21 · 11 · 26</span><span class="dot">★</span>';
