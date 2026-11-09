@@ -115,12 +115,13 @@
     z-index: 11;
     width: 100%;
     overflow: hidden;
-    padding: 14px 0 8px;
+    /* espacio proporcional al ancho para que las puntas inclinadas no se corten */
+    padding: calc(3.4vw + 10px) 0 calc(3.4vw + 4px);
   }
   .ticker {
     position: relative;
     width: 120%;
-    margin: 8px 0 0 -10%;
+    margin: 0 0 0 -10%;
     transform: rotate(-3deg);
     background: linear-gradient(90deg, var(--pink), var(--purple), var(--pink));
     border-top: 2px solid rgba(255,255,255,0.8);
@@ -140,6 +141,10 @@
   }
   .ticker-track span { padding: 0 14px; }
   .ticker-track .dot { color: var(--gold); }
+  @media (min-width: 700px) {
+    .ticker-zone { padding: calc(1.3vw + 12px) 0 calc(1.3vw + 6px); }
+    .ticker { transform: rotate(-1.2deg); }
+  }
   @keyframes tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
   /* === Page === */
