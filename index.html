@@ -52,6 +52,8 @@
     color: var(--ink);
   }
   body.invitation-open { overflow-y: auto; }
+  /* Mientras el pase VIP está abierto, la página de atrás queda fija arriba (iPhone ignora overflow:hidden) */
+  body:not(.invitation-open) { position: fixed; top: 0; left: 0; right: 0; }
 
   /* === Stage spotlights === */
   .spotlight {
@@ -476,6 +478,7 @@
     padding: 0 16px 24px;
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     transition: opacity 0.9s ease, transform 0.9s ease;
   }
@@ -638,7 +641,7 @@
       </div>
     </div>
   </div>
-  <button class="enter-btn" onclick="enterInvitation()">🎟️ Entrar a la fiesta</button>
+  <button class="enter-btn" onclick="enterInvitation()">🎟️ Ver mi invitación</button>
   <p class="enter-hint">¡Tienes una invitación especial!</p>
 </div>
 
@@ -788,13 +791,25 @@ updateCountdown();
 
 <script>
 // === SPLASH ===
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+window.scrollTo(0, 0);
+
+function toTop() {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+}
+
 function enterInvitation() {
   const splash = document.getElementById('splash');
   if (splash.classList.contains('hide')) return;
+  startMusic(); // primero, dentro del toque del usuario
+  toTop();
   splash.classList.add('hide');
-  setTimeout(() => { splash.style.display = 'none'; }, 950);
   document.body.classList.add('invitation-open');
-  startMusic();
+  requestAnimationFrame(() => { toTop(); requestAnimationFrame(toTop); });
+  setTimeout(toTop, 300);
+  setTimeout(() => { splash.style.display = 'none'; toTop(); }, 950);
 }
 
 // === MÚSICA: loop pop sintetizado (bombo, palmas, hi-hat, bajo y arpegio) ===
@@ -802,16 +817,59 @@ let audioCtx = null, masterGain = null;
 const BPM = 112;
 const STEP = 60 / BPM / 4; // semicorcheas
 
+let musicOn = true;
+let silentEl = null;
+
+// WAV silencioso: al reproducirlo con <audio>, iOS trata la página como
+// "reproducción multimedia" y deja sonar el audio aunque esté el interruptor de silencio.
+function silentWavUrl() {
+  const sr = 8000, n = sr / 2, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e) {}
+  try {
+    if (!silentEl) {
+      silentEl = new Audio(silentWavUrl());
+      silentEl.loop = true;
+      silentEl.setAttribute('playsinline', '');
+    }
+    const p = silentEl.play(); if (p && p.catch) p.catch(() => {});
+  } catch(e) {}
+  if (audioCtx) {
+    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
+    // un sonido vacío dentro del toque desbloquea el audio en Safari antiguo
+    const b = audioCtx.createBufferSource();
+    b.buffer = audioCtx.createBuffer(1, 1, 22050);
+    b.connect(audioCtx.destination); b.start(0);
+  }
+}
+
 function startMusic() {
-  if (audioCtx) return;
+  if (audioCtx) { unlockAudio(); return; }
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.2;
+    masterGain.gain.value = 0.38;
     masterGain.connect(audioCtx.destination);
+    unlockAudio();
     startSequencer();
   } catch(e) { console.warn('Audio no disponible:', e); }
 }
+
+// Si el celular pausó el audio (llamada, cambio de app), lo retoma al volver o al tocar la pantalla
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && audioCtx && musicOn) unlockAudio();
+});
+document.addEventListener('touchend', () => {
+  if (audioCtx && musicOn && audioCtx.state !== 'running') unlockAudio();
+}, { passive: true });
 
 let noiseBuf = null;
 function getNoise() {
@@ -872,7 +930,9 @@ function startSequencer() {
       if (s === 4 || s === 12) noiseHit(nextTime, 1500, 0.18, 0.35, 'bandpass');
       if (s % 2 === 1) noiseHit(nextTime, 8000, 0.05, 0.12, 'highpass');
       if (s % 4 === 2 || s === 0) tone(nextTime, chord.bass, STEP * 1.8, 0.28, 'triangle');
-      tone(nextTime, chord.arp[arpPattern[s]], STEP * 0.9, 0.045, 'square');
+      tone(nextTime, chord.arp[arpPattern[s]], STEP * 0.9, 0.08, 'square');
+      // bajo una octava arriba para que se escuche en bocinas de celular
+      if (s % 4 === 2 || s === 0) tone(nextTime, chord.bass * 2, STEP * 1.6, 0.12, 'triangle');
       nextTime += STEP;
       step++;
     }
